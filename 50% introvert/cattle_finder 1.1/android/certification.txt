@@ -1,0 +1,24 @@
+---------------------------------------------------
+Here are the ownership and the certification details
+of the cattle_finder 1.1
+---------------------------------------------------
+
+app_name - 						cattle_finder
+app_alias - 					cattlefinder
+app_author_name - 				My Company
+app_author_organizational - 	My Company
+app_author_organization - 		My Company
+app_author_locality - 			My Company
+app_author_state - 				Gujarat
+app_author_country - 			India
+app_password - 					QI5ISuajjb5v
+app_versionName - 				versionName "1.1"
+app_versionCode - 				101
+
+---------------------------------------------------
+The certification was created by WebIntoApp.com at
+the Monday 1st of September 2025 11:45:07 AM
+
+https://webintoapp.com
+---------------------------------------------------
+

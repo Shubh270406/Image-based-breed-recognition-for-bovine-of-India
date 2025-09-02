@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cattle Detector App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        :root {
+            --primary: #3498db;
+            --secondary: #2ecc71;
+            --accent: #e74c3c;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+            --gray: #95a5a6;
+            --cow-bg: #e8f6ef;
+            --buffalo-bg: #e3f2fd;
+            --none-bg: #ffebee;
+            --history-bg: #f9f9f9;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: #333;
+            line-height: 1.6;
+            height: 100vh;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* Main app container */
+        #app {
+            height: 90vh;
+            width: 95%;
+            max-width: 600px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .app-header {
+            background: linear-gradient(135deg, var(--dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .app-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .app-header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .app-content {
+            flex: 1;
+            padding: 20px 15px;
+            overflow-y: auto;
+        }
+        
+        .upload-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 8px 5px;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+        
+        .btn:active {
+            transform: translateY(1px);
+        }
+        
+        .btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: var(--secondary);
+        }
+        
+        .btn-secondary:hover {
+            background: #27ae60;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        .image-preview {
+            width: 100%;
+            margin: 20px 0;
+            text-align: center;
+            min-height: 250px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px dashed #dce6f4;
+            border-radius: 12px;
+            padding: 15px;
+            background: #fafcff;
+        }
+        
+        .image-preview img {
+            max-width: 100%;
+            max-height: 280px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            display: none;
+            animation: fadeIn 0.4s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .cow {
+            background: linear-gradient(to right, var(--cow-bg), #d4edda);
+            border-left: 4px solid var(--secondary);
+        }
+        
+        .buffalo {
+            background: linear-gradient(to right, var(--buffalo-bg), #bbdefb);
+            border-left: 4px solid var(--primary);
+        }
+        
+        .none {
+            background: linear-gradient(to right, var(--none-bg), #ffcdd2);
+            border-left: 4px solid var(--accent);
+        }
+        
+        .result h3 {
+            color: var(--dark);
+            margin-bottom: 12px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .breed-info {
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            border-left: 3px solid #f39c12;
+        }
+        
+        .breed-title {
+            color: var(--dark);
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .progress-container {
+            margin: 12px 0;
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--secondary), #2ecc71);
+            border-radius: 5px;
+            width: 0%;
+            transition: width 0.8s ease;
+        }
+        
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 25px 15px;
+            color: var(--dark);
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+        
+        .info-text {
+            text-align: center;
+            margin-top: 15px;
+            color: #7f8c8d;
+            font-style: italic;
+            padding: 0 10px;
+            font-size: 0.9rem;
+        }
+        
+        .highlight {
+            color: var(--primary);
+            font-weight: bold;
+        }
+        
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 4px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            margin: 0 auto 20px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            text-align: center;
+            flex: 1;
+            font-size: 0.9rem;
+        }
+        
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .breed-gallery {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .breed-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+        }
+        
+        .breed-card:hover {
+            transform: translateY(-3px);
+        }
+        
+        .breed-img {
+            height: 100px;
+            background: linear-gradient(45deg, #74b9ff, #0984e3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+        }
+        
+        .breed-details {
+            padding: 10px;
+        }
+        
+        .breed-name {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: var(--dark);
+            font-size: 0.95rem;
+        }
+        
+        .breed-origin {
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        .breed-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray);
+        }
+        
+        .modal-breed-name {
+            color: var(--dark);
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+        
+        .modal-breed-origin {
+            color: var(--gray);
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+        
+        .modal-breed-characteristics {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        
+        .modal-breed-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-box {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        .creator-credit {
+            text-align: center;
+            margin-top: 30px;
+            padding: 15px;
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .creator-credit i {
+            margin-right: 8px;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* History section styles */
+        #history-section {
+            display: none;
+        }
+        
+        .history-container {
+            background: var(--history-bg);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .history-title {
+            font-size: 1.2rem;
+            color: var(--dark);
+            font-weight: 600;
+        }
+        
+        .history-item {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid var(--primary);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .history-item.cow {
+            border-left-color: var(--secondary);
+        }
+        
+        .history-item.buffalo {
+            border-left-color: var(--primary);
+        }
+        
+        .history-item.none {
+            border-left-color: var(--accent);
+        }
+        
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .history-item-title {
+            font-weight: 600;
+            color: var(--dark);
+        }
+        
+        .history-item-date {
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        .history-item-details {
+            font-size: 0.9rem;
+            color: #555;
+        }
+        
+        .history-empty {
+            text-align: center;
+            padding: 30px;
+            color: var(--gray);
+        }
+        
+        .history-empty i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #d0d0d0;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @media (max-width: 768px) {
+            .app-header h1 {
+                font-size: 1.3rem;
+            }
+            
+            .btn {
+                padding: 10px 16px;
+                font-size: 0.9rem;
+            }
+            
+            .breed-gallery {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                max-width: 100%;
+            }
+            
+            .tab {
+                padding: 8px 10px;
+                font-size: 0.8rem;
+            }
+            
+            .modal-breed-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header class="app-header">
+            <h1><i class="fas fa-cow"></i> Cattle Detector</h1>
+            <p>Identify cattle and Indian cow breeds with AI</p>
+        </header>
+        
+        <div class="app-content">
+            <div class="tabs">
+                <div class="tab active" id="detect-tab">Detect</div>
+                <div class="tab" id="breeds-tab">Breeds</div>
+                <div class="tab" id="history-tab">History</div>
+                <div class="tab" id="info-tab">Info</div>
+            </div>
+            
+            <div id="detect-section">
+                <div class="upload-section">
+                    <p>Select an image to detect cattle and identify breeds</p>
+                    <button class="btn" onclick="document.getElementById('imageInput').click()">
+                        <i class="fas fa-image"></i> Choose Image
+                    </button>
+                    <button class="btn btn-secondary" onclick="detectCattle()" id="detectBtn" disabled>
+                        <i class="fas fa-search"></i> Detect Cattle
+                    </button>
+                </div>
+                
+                <div id="imagePreview" class="image-preview">
+                    <p id="placeholderText"><i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: #74b9ff; margin-bottom: 10px;"></i><br>Your image will appear here</p>
+                </div>
+                
+                <div id="result" class="result">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Analyzing image...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="breeds-section" style="display: none;">
+                <h2 style="text-align: center; margin-bottom: 15px; color: var(--dark);">Indian Cow Breeds</h2>
+                <p style="text-align: center; margin-bottom: 20px; color: var(--gray);">Click on any breed to learn more</p>
+                <div class="breed-gallery" id="breed-gallery">
+                    <!-- Breed cards will be generated here -->
+                </div>
+            </div>
+            
+            <div id="history-section" style="display: none;">
+                <div class="history-container">
+                    <div class="history-header">
+                        <div class="history-title">Detection History</div>
+                        <button class="btn btn-warning" onclick="clearHistory()">
+                            <i class="fas fa-trash"></i> Clear History
+                        </button>
+                    </div>
+                    <div id="history-list">
+                        <!-- History items will be generated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div id="info-section" style="display: none;">
+                <div class="breed-info">
+                    <h3><i class="fas fa-info-circle"></i> About This App</h3>
+                    <p>This app uses TensorFlow.js and the COCO-SSD model to detect cattle in images. When a cow is detected, it also identifies the most likely Indian breed based on visual characteristics.</p>
+                    <p style="margin-top: 12px;">The app can distinguish between cows and buffaloes, and provides detailed information about various Indian cow breeds.</p>
+                    <p style="margin-top: 12px;">Please note that breed detection is simulated for demonstration purposes.</p>
+                </div>
+                
+                <!-- Updated "Made by" section -->
+                <div class="creator-credit">
+                    <i class="fas fa-code"></i> Made by 50% introvert
+                </div>
+            </div>
+            
+            <p class="info-text">Detect cows, buffaloes, and identify Indian cow breeds with accuracy</p>
+        </div>
+        
+        <!-- Breed modal -->
+        <div class="breed-modal" id="breed-modal">
+            <div class="modal-content">
+                <span class="close-modal" onclick="closeBreedModal()">&times;</span>
+                <h2 class="modal-breed-name" id="modal-breed-name"></h2>
+                <p class="modal-breed-origin" id="modal-breed-origin"></p>
+                <p class="modal-breed-characteristics" id="modal-breed-characteristics"></p>
+                
+                <div class="modal-breed-stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="modal-milk-yield"></div>
+                        <div class="stat-label">Milk Yield</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="modal-climate"></div>
+                        <div class="stat-label">Climate Adaptation</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="modal-purpose"></div>
+                        <div class="stat-label">Primary Purpose</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="modal-popularity"></div>
+                        <div class="stat-label">Popularity</div>
+                    </div>
+                </div>
+                
+                <h3 style="margin-bottom: 10px; color: var(--dark);">Additional Information</h3>
+                <p id="modal-additional-info"></p>
+            </div>
+        </div>
+        
+        <input type="file" id="imageInput" accept="image/*">
+    </div>
+
+    <script>
+        // Global variables
+        let selectedImage = null;
+        let imageElement = null;
+        let model = null;
+        let detectionHistory = [];
+        
+        // Indian cow breeds database
+        const indianCowBreeds = [
+            {
+                name: "Gir",
+                origin: "Gujarat, India",
+                characteristics: "Distinct curved horns, large drooping ears, and a prominent forehead hump. Known for their tolerance to stressful conditions and resistance to various tropical diseases.",
+                probability: 0.35,
+                icon: "fa-solid fa-mountain",
+                milkYield: "1600-1800 kg/year",
+                climate: "Hot and humid",
+                purpose: "Dairy",
+                popularity: "High",
+                additionalInfo: "The Gir breed is one of the principal Zebu breeds in India. They are known for their distinctive appearance and are often used in genetic improvement programs. Their milk has high fat content, making it ideal for producing ghee and other dairy products."
+            },
+            {
+                name: "Sahiwal",
+                origin: "Punjab region (India/Pakistan)",
+                characteristics: "Reddish dun color, loose skin, and high milk yield potential. Considered one of the best dairy breeds in India with excellent heat tolerance and resistance to ticks.",
+                probability: 0.25,
+                icon: "fa-solid fa-tint",
+                milkYield: "2000-3000 kg/year",
+                climate: "Tropical",
+                purpose: "Dairy",
+                popularity: "Very High",
+                additionalInfo: "Sahiwal is one of the best dairy breeds in India and Pakistan. Known for their high milk production and resistance to heat stress, they are often preferred in tropical regions. The breed is also known for its calm temperament and ease of handling."
+            },
+            {
+                name: "Red Sindhi",
+                origin: "Sindh region (Pakistan), also found in India",
+                characteristics: "Deep red color, short horns, and docile temperament. Well adapted to hot climates and known for consistent milk production even under stressful conditions.",
+                probability: 0.20,
+                icon: "fa-solid fa-fire",
+                milkYield: "1200-1800 kg/year",
+                climate: "Hot",
+                purpose: "Dairy",
+                popularity: "Medium",
+                additionalInfo: "Red Sindhi cattle are known for their striking red color and excellent heat tolerance. They are efficient converters of feed into milk and are valued for their hardiness. This breed has been exported to many countries for crossbreeding programs to improve heat tolerance and milk production."
+            },
+            {
+                name: "Tharparkar",
+                origin: "Thar Desert (Rajasthan, India)",
+                characteristics: "White or gray coat, lyre-shaped horns, and dual-purpose (milk and draft). Known for their hardiness in desert conditions and ability to travel long distances for water.",
+                probability: 0.15,
+                icon: "fa-solid fa-sun",
+                milkYield: "1800-2600 kg/year",
+                climate: "Arid",
+                purpose: "Dual-purpose",
+                popularity: "Medium",
+                additionalInfo: "Tharparkar cattle are well-adapted to the harsh conditions of the Thar Desert. They can withstand extreme temperatures and water scarcity. Besides milk production, they are also used as draft animals for agricultural operations. Their white/gray coat helps reflect sunlight, keeping them cooler in hot conditions."
+            },
+            {
+                name: "Kankrej",
+                origin: "Gujarat, India",
+                characteristics: "Silver-grey to iron-black coat, large curved horns, and strong build. Primarily used as draft animals but also valued for milk production. Known for their fast walking ability.",
+                probability: 0.05,
+                icon: "fa-solid fa-shield-alt",
+                milkYield: "1400-2000 kg/year",
+                climate: "Dry",
+                purpose: "Draft",
+                popularity: "Medium",
+                additionalInfo: "Kankrej is one of the heaviest Indian cattle breeds. They are known for their great strength and endurance, making them excellent draft animals. The breed is also known for its resistance to respiratory diseases and ticks. Their distinctive upward-curving horns can span over 60 cm."
+            },
+            {
+                name: "Ongole",
+                origin: "Andhra Pradesh, India",
+                characteristics: "Large, muscular white cattle with black markings. Known for their strength, resistance to disease, and ability to thrive in harsh environments.",
+                probability: 0.10,
+                icon: "fa-solid fa-dumbbell",
+                milkYield: "1000-1500 kg/year",
+                climate: "Tropical",
+                purpose: "Dual-purpose",
+                popularity: "High",
+                additionalInfo: "Ongole cattle are known for their strength and are often used in bullfighting sports in some regions. They have been exported to several countries, including Brazil, where they contributed to the development of the Zebu breeds. Their distinctive hump is large and erect."
+            },
+            {
+                name: "Hariana",
+                origin: "Haryana, India",
+                characteristics: "Compact white or light gray cattle with moderate hump. Known for being good draft animals while also providing reasonable milk yield.",
+                probability: 0.08,
+                icon: "fa-solid fa-tractor",
+                milkYield: "1000-1500 kg/year",
+                climate: "North Indian plains",
+                purpose: "Dual-purpose",
+                popularity: "High",
+                additionalInfo: "Hariana cattle are well-adapted to the conditions of Northern India. They are valued for both milk production and draft capabilities. The breed is known for its docile temperament and ability to thrive on agricultural by-products."
+            },
+            {
+                name: "Vechur",
+                origin: "Kerala, India",
+                characteristics: "Smallest cattle breed in the world, standing just 90 cm tall. Light red, black, or white in color. Known for high-fat milk and disease resistance.",
+                probability: 0.02,
+                icon: "fa-solid fa-seedling",
+                milkYield: "2-3 kg/day",
+                climate: "Humid",
+                purpose: "Dairy",
+                popularity: "Rare",
+                additionalInfo: "Vechur cattle are a rare dwarf breed that was nearly extinct but has been conserved through preservation efforts. Despite their small size, their milk contains about 5% fat. They are highly resistant to diseases and require less feed than larger breeds."
+            }
+        ];
+
+        // Initialize the application
+        function init() {
+            // Set up event listeners
+            document.getElementById('imageInput').addEventListener('change', handleImageSelect);
+            
+            // Generate breed gallery
+            generateBreedGallery();
+            
+            // Load the object detection model
+            loadModel();
+            
+            // Load history from localStorage
+            loadHistory();
+        }
+        
+        // Load detection history from localStorage
+        function loadHistory() {
+            const savedHistory = localStorage.getItem('cattleDetectionHistory');
+            if (savedHistory) {
+                detectionHistory = JSON.parse(savedHistory);
+                renderHistory();
+            }
+        }
+        
+        // Save detection history to localStorage
+        function saveHistory() {
+            localStorage.setItem('cattleDetectionHistory', JSON.stringify(detectionHistory));
+        }
+        
+        // Add a detection result to history
+        function addToHistory(result) {
+            // Create history entry
+            const historyEntry = {
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                type: result.type,
+                confidence: result.probability,
+                breed: result.breed,
+                imageName: selectedImage.name
+            };
+            
+            // Add to beginning of history array
+            detectionHistory.unshift(historyEntry);
+            
+            // Keep only the last 20 entries
+            if (detectionHistory.length > 20) {
+                detectionHistory = detectionHistory.slice(0, 20);
+            }
+            
+            // Save to localStorage
+            saveHistory();
+            
+            // Update history display
+            renderHistory();
+        }
+        
+        // Render history list
+        function renderHistory() {
+            const historyList = document.getElementById('history-list');
+            
+            if (detectionHistory.length === 0) {
+                historyList.innerHTML = `
+                    <div class="history-empty">
+                        <i class="fas fa-history"></i>
+                        <p>No detection history yet</p>
+                        <p>Perform some detections to see them here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            historyList.innerHTML = '';
+            
+            detectionHistory.forEach(entry => {
+                const historyItem = document.createElement('div');
+                historyItem.className = `history-item ${entry.type}`;
+                
+                const date = new Date(entry.timestamp);
+                const formattedDate = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+                
+                let breedInfo = '';
+                if (entry.breed) {
+                    breedInfo = `<div>Breed: ${entry.breed.name} (${entry.confidence}% confidence)</div>`;
+                }
+                
+                historyItem.innerHTML = `
+                    <div class="history-item-header">
+                        <div class="history-item-title">
+                            ${entry.type === 'cow' ? 'Cow' : entry.type === 'buffalo' ? 'Buffalo' : 'No Cattle'} Detected
+                        </div>
+                        <div class="history-item-date">${formattedDate}</div>
+                    </div>
+                    <div class="history-item-details">
+                        <div>Image: ${entry.imageName}</div>
+                        <div>Confidence: ${entry.confidence}%</div>
+                        ${breedInfo}
+                    </div>
+                `;
+                
+                historyList.appendChild(historyItem);
+            });
+        }
+        
+        // Clear history
+        function clearHistory() {
+            if (confirm("Are you sure you want to clear all detection history?")) {
+                detectionHistory = [];
+                saveHistory();
+                renderHistory();
+            }
+        }
+        
+        // Generate breed gallery
+        function generateBreedGallery() {
+            const gallery = document.getElementById('breed-gallery');
+            gallery.innerHTML = '';
+            
+            indianCowBreeds.forEach(breed => {
+                const card = document.createElement('div');
+                card.className = 'breed-card';
+                card.innerHTML = `
+                    <div class="breed-img">
+                        <i class="${breed.icon}"></i>
+                    </div>
+                    <div class="breed-details">
+                        <div class="breed-name">${breed.name}</div>
+                        <div class="breed-origin">${breed.origin}</div>
+                    </div>
+                `;
+                
+                // Add click event to show breed details
+                card.addEventListener('click', () => {
+                    showBreedDetails(breed);
+                });
+                
+                gallery.appendChild(card);
+            });
+        }
+        
+        // Show breed details in modal
+        function showBreedDetails(breed) {
+            document.getElementById('modal-breed-name').textContent = breed.name;
+            document.getElementById('modal-breed-origin').textContent = breed.origin;
+            document.getElementById('modal-breed-characteristics').textContent = breed.characteristics;
+            document.getElementById('modal-milk-yield').textContent = breed.milkYield;
+            document.getElementById('modal-climate').textContent = breed.climate;
+            document.getElementById('modal-purpose').textContent = breed.purpose;
+            document.getElementById('modal-popularity').textContent = breed.popularity;
+            document.getElementById('modal-additional-info').textContent = breed.additionalInfo;
+            
+            document.getElementById('breed-modal').style.display = 'flex';
+        }
+        
+        // Close breed modal
+        function closeBreedModal() {
+            document.getElementById('breed-modal').style.display = 'none';
+        }
+        
+        // Show/hide sections
+        function showSection(section) {
+            document.getElementById('detect-section').style.display = 'none';
+            document.getElementById('breeds-section').style.display = 'none';
+            document.getElementById('history-section').style.display = 'none';
+            document.getElementById('info-section').style.display = 'none';
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            if (section === 'detect') {
+                document.getElementById('detect-section').style.display = 'block';
+                document.getElementById('detect-tab').classList.add('active');
+            } else if (section === 'breeds') {
+                document.getElementById('breeds-section').style.display = 'block';
+                document.getElementById('breeds-tab').classList.add('active');
+            } else if (section === 'history') {
+                document.getElementById('history-section').style.display = 'block';
+                document.getElementById('history-tab').classList.add('active');
+            } else if (section === 'info') {
+                document.getElementById('info-section').style.display = 'block';
+                document.getElementById('info-tab').classList.add('active');
+            }
+        }
+        
+        // Load the TensorFlow.js model
+        async function loadModel() {
+            try {
+                console.log("Loading object detection model...");
+                model = await cocoSsd.load();
+                console.log("Object detection model loaded successfully.");
+                
+                // Update UI to indicate model is ready
+                const placeholder = document.getElementById('placeholderText');
+                if (placeholder) {
+                    placeholder.innerHTML = '<i class="fas fa-check-circle" style="color: #2ecc71; font-size: 2.5rem; margin-bottom: 10px;"></i><br>Model loaded. Select an image to begin.';
+                }
+            } catch (error) {
+                console.error("Error loading model:", error);
+                const placeholder = document.getElementById('placeholderText');
+                if (placeholder) {
+                    placeholder.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #e74c3c; font-size: 2.5rem; margin-bottom: 10px;"></i><br>Error loading model. Please refresh the page.';
+                }
+            }
+        }
+        
+        // Handle image selection
+        function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            selectedImage = file;
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                // Create an image element for preview
+                const preview = document.getElementById('imagePreview');
+                preview.innerHTML = '';
+                
+                imageElement = document.createElement('img');
+                imageElement.src = e.target.result;
+                imageElement.onload = function() {
+                    // Enable detect button once image is loaded
+                    document.getElementById('detectBtn').disabled = false;
+                };
+                
+                preview.appendChild(imageElement);
+                document.getElementById('placeholderText').style.display = 'none';
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        // Detect Indian cow breed (mock implementation)
+        function detectIndianCowBreed() {
+            // In a real application, this would be a trained model
+            // For demonstration, we'll return a random breed with probabilities
+            const randomValue = Math.random();
+            let cumulativeProbability = 0;
+            
+            for (const breed of indianCowBreeds) {
+                cumulativeProbability += breed.probability;
+                if (randomValue <= cumulativeProbability) {
+                    return breed;
+                }
+            }
+            
+            // Fallback
+            return indianCowBreeds[0];
+        }
+        
+        // Main detection function
+        async function detectCattle() {
+            if (!selectedImage || !imageElement) {
+                alert("Please select an image first.");
+                return;
+            }
+            
+            if (!model) {
+                alert("Model is still loading. Please wait a moment.");
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing image...</p>
+                </div>
+            `;
+            
+            // Scroll to results
+            resultDiv.scrollIntoView({ behavior: 'smooth' });
+            
+            try {
+                // Use the model to make predictions
+                const predictions = await model.detect(imageElement);
+                console.log("Predictions:", predictions);
+                
+                // Find relevant predictions
+                const cattlePrediction = predictions.find(p => 
+                    p.class === 'cow' || p.class === 'bear' // Using 'bear' as a stand-in for 'buffalo'
+                );
+                
+                let result = {
+                    type: 'none',
+                    text: 'No Cattle Found 🚫',
+                    probability: 'N/A',
+                    breed: null
+                };
+
+                if (cattlePrediction) {
+                    const isCow = cattlePrediction.class === 'cow';
+                    result.type = isCow ? 'cow' : 'buffalo';
+                    result.text = `<strong>${isCow ? 'Cow' : 'Buffalo'} Found!</strong>`;
+                    result.probability = (cattlePrediction.score * 100).toFixed(1);
+                    
+                    // If it's a cow, detect the Indian breed
+                    if (isCow) {
+                        result.breed = detectIndianCowBreed();
+                    }
+                }
+                
+                // Add to history
+                addToHistory(result);
+                
+                // Display the result with a slight delay for better UX
+                setTimeout(() => {
+                    displayResult(result);
+                }, 1500);
+                
+            } catch (error) {
+                console.error("Detection error:", error);
+                resultDiv.innerHTML = `
+                    <div class="none">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Error</h3>
+                        <p>Something went wrong during detection. Please try again.</p>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Display the detection result
+        function displayResult(result) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result ' + result.type;
+            
+            let resultHTML = `
+                <h3><i class="fas fa-${result.type === 'cow' ? 'cow' : (result.type === 'buffalo' ? 'water' : 'times-circle')}"></i> Detection Result</h3>
+                <p>${result.text}</p>
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>Confidence:</span>
+                        <span>${result.probability}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: ${result.probability}%"></div>
+                    </div>
+                </div>
+            `;
+            
+            if (result.breed) {
+                resultHTML += `
+                    <div class="breed-info">
+                        <div class="breed-title"><i class="fas fa-star"></i> Indian Breed Detected: ${result.breed.name}</div>
+                        <p><span class="highlight">Origin:</span> ${result.breed.origin}</p>
+                        <p><span class="highlight">Characteristics:</span> ${result.breed.characteristics}</p>
+                        <p><span class="highlight">Milk Yield:</span> ${result.breed.milkYield}</p>
+                        <p><span class="highlight">Climate Adaptation:</span> ${result.breed.climate}</p>
+                    </div>
+                `;
+            }
+            
+            resultHTML += `<p><span class="highlight">Image:</span> ${selectedImage.name}</p>`;
+            resultDiv.innerHTML = resultHTML;
+        }
+        
+        // Initialize the app when the page loads
+        window.onload = init;
+        
+        // Add tab functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabId = this.id;
+                if (tabId === 'detect-tab') showSection('detect');
+                else if (tabId === 'breeds-tab') showSection('breeds');
+                else if (tabId === 'history-tab') showSection('history');
+                else if (tabId === 'info-tab') showSection('info');
+            });
+        });
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('breed-modal');
+            if (event.target === modal) {
+                closeBreedModal();
+            }
+        });
+    </script>
+</body>
+</html>
